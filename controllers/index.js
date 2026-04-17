@@ -352,3 +352,45 @@ exports.deleteImage = async (req, res) => {
     res.json({ success: true, message: 'Image deleted.' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
+
+// ── ADMIN: Get all admins ──────────────────────────
+exports.getAdmins = async (req, res) => {
+  try {
+    const admins = await User.find().select('-password').sort({ createdAt: 1 });
+    res.json({ success: true, data: admins });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+};
+
+// ── ADMIN: Add new admin/editor ────────────────────
+exports.addAdmin = async (req, res) => {
+  try {
+    const { name, email, password, role, permissions } = req.body;
+    if (!name || !email || !password)
+      return res.status(400).json({ success: false, message: 'Name, email and password required.' });
+    if (password.length < 8)
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
+    const exists = await User.findOne({ email: email.toLowerCase().trim() });
+    if (exists)
+      return res.status(400).json({ success: false, message: 'An account with this email already exists.' });
+    const user = await User.create({
+      name, email, password,
+      role:        role || 'admin',
+      permissions: permissions || ['posts', 'categories', 'comments'],
+      addedBy:     req.user.id,
+    });
+    res.status(201).json({ success: true, message: `${name} added as ${role || 'admin'}.`, data: { id: user._id, name: user.name, email: user.email, role: user.role } });
+  } catch (e) {
+    if (e.code === 11000) return res.status(400).json({ success: false, message: 'Email already in use.' });
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+// ── ADMIN: Remove admin ────────────────────────────
+exports.removeAdmin = async (req, res) => {
+  try {
+    if (req.params.id === req.user.id.toString())
+      return res.status(400).json({ success: false, message: 'You cannot remove your own account.' });
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Admin removed.' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+};

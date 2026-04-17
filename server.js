@@ -75,11 +75,12 @@ mongoose.connect(process.env.MONGODB_URI)
   });
 
 // ── Routes ────────────────────────────────────────
-app.use('/api/auth',       require('./routes/authRoutes'));
-app.use('/api/posts',      require('./routes/postRoutes'));
-app.use('/api/categories', require('./routes/categoryRoutes'));
-app.use('/api/comments',   require('./routes/commentRoutes'));
-app.use('/api/upload',     require('./routes/uploadRoutes'));
+app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/posts", require("./routes/postRoutes"));
+app.use("/api/categories", require("./routes/categoryRoutes"));
+app.use("/api/comments", require("./routes/commentRoutes"));
+app.use("/api/upload", require("./routes/uploadRoutes"));
+app.use("/api/subscribers", require("./routes/subscriberRoutes"));
 
 // ── Health check ──────────────────────────────────
 app.get('/api/health', (req, res) => {

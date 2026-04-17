@@ -2,16 +2,34 @@
 const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
 
-const UserSchema = new mongoose.Schema({
-  name:      { type: String, required: true, trim: true },
-  email:     { type: String, required: true, unique: true, lowercase: true, trim: true },
-  password:  { type: String, required: true, minlength: 8, select: false },
-  role:      { type: String, enum: ['admin'], default: 'admin' },
-  bio:       { type: String, default: '' },
-  avatar:    { type: String, default: '' },
-  isActive:  { type: Boolean, default: true },
-  lastLogin: { type: Date, default: null },
-}, { timestamps: true });
+const UserSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    password: { type: String, required: true, minlength: 8, select: false },
+    role: { type: String, enum: ["admin", "editor"], default: "admin" },
+    permissions: {
+      type: [String],
+      default: ["posts", "categories", "comments", "subscribers"],
+    },
+    addedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    bio: { type: String, default: "" },
+    avatar: { type: String, default: "" },
+    isActive: { type: Boolean, default: true },
+    lastLogin: { type: Date, default: null },
+  },
+  { timestamps: true },
+);
 
 UserSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
