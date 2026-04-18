@@ -204,7 +204,7 @@ exports.saveEmailConfig = async (req, res) => {
       if (req.body[f] !== undefined) cfg[f] = req.body[f];
     });
     // Only update password if a real value was sent
-    if (req.body.smtpPass && !req.body.smtpPass.includes("•")) {
+    if (req.body.smtpPass) {
       cfg.smtpPass = req.body.smtpPass;
     }
     await cfg.save();
