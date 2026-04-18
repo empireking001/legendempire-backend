@@ -1,6 +1,6 @@
 const Subscriber = require("../models/Subscriber");
 const EmailConfig = require("../models/EmailConfig");
-const Post = require("../models/index");
+const Post = require("../models");
 
 // ── Helper: get or create singleton email config ──
 async function getConfig() {
