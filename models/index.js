@@ -58,27 +58,50 @@ const CategorySchema = new mongoose.Schema({
 const Category = mongoose.model('Category', CategorySchema);
 
 // ── Post Model ────────────────────────────────
-const PostSchema = new mongoose.Schema({
-  title:       { type: String, required: true, trim: true },
-  slug:        { type: String, unique: true, lowercase: true },
-  excerpt:     { type: String, default: '' },
-  content:     { type: String, required: true },
-  coverImage:  { type: String, default: '' },
-  coverImageId:{ type: String, default: '' }, // Cloudinary public_id
-  category:    { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
-  author:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  status:      { type: String, enum: ['draft', 'published'], default: 'draft' },
-  tags:        [{ type: String, lowercase: true, trim: true }],
-  metaTitle:   { type: String, default: '' },
-  metaDesc:    { type: String, default: '' },
-  views:       { type: Number, default: 0 },
-  likes:       { type: Number, default: 0 },
-  likedBy:     [{ type: String }],
-  commentsCount:{ type: Number, default: 0 },
-  isFeatured:  { type: Boolean, default: false },
-  readTime:    { type: Number, default: 1 },
-  publishedAt: { type: Date, default: null },
-}, { timestamps: true });
+const PostSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true, trim: true },
+    slug: { type: String, unique: true, lowercase: true },
+    excerpt: { type: String, default: "" },
+    content: { type: String, required: true },
+    coverImage: { type: String, default: "" },
+    coverImageId: { type: String, default: "" }, // Cloudinary public_id
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+    },
+    author: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    status: { type: String, enum: ["draft", "published"], default: "draft" },
+    tags: [{ type: String, lowercase: true, trim: true }],
+    metaTitle: { type: String, default: "" },
+    metaDesc: { type: String, default: "" },
+    views: { type: Number, default: 0 },
+    likes: { type: Number, default: 0 },
+    likedBy: [{ type: String }],
+    commentsCount: { type: Number, default: 0 },
+    isFeatured: { type: Boolean, default: false },
+    // Scheduler
+    scheduledAt: { type: Date, default: null },
+    // Sponsored
+    isSponsored: { type: Boolean, default: false },
+    sponsoredLabel: { type: String, default: "Sponsored" },
+    // SEO extras
+    canonicalUrl: { type: String, default: "" },
+    ogImage: { type: String, default: "" },
+    // Analytics
+    searchTerms: [{ type: String }],
+    // Revision tracking
+    currentVersion: { type: Number, default: 1 },
+    readTime: { type: Number, default: 1 },
+    publishedAt: { type: Date, default: null },
+  },
+  { timestamps: true },
+);
 
 // PostSchema.index({ slug: 1 });
 PostSchema.index({ status: 1, publishedAt: -1 });
@@ -118,4 +141,56 @@ const CommentSchema = new mongoose.Schema({
 
 const Comment = mongoose.model('Comment', CommentSchema);
 
-module.exports = { User, Category, Post, Comment };
+// ── PostRevision Model ─────────────────────────────
+const PostRevisionSchema = new mongoose.Schema({
+  post:      { type: mongoose.Schema.Types.ObjectId, ref: 'Post', required: true },
+  content:   { type: String, required: true },
+  title:     { type: String, required: true },
+  savedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  version:   { type: Number, default: 1 },
+  note:      { type: String, default: 'Auto-save' },
+}, { timestamps: true });
+
+const PostRevision = mongoose.model('PostRevision', PostRevisionSchema);
+
+// ── AffiliateLink Model ────────────────────────────
+const AffiliateLinkSchema = new mongoose.Schema({
+  name:        { type: String, required: true, trim: true },
+  shortCode:   { type: String, required: true, unique: true, trim: true },
+  destination: { type: String, required: true, trim: true },
+  clicks:      { type: Number, default: 0 },
+  isActive:    { type: Boolean, default: true },
+  description: { type: String, default: '' },
+}, { timestamps: true });
+
+const AffiliateLink = mongoose.model('AffiliateLink', AffiliateLinkSchema);
+
+// ── SiteSettings Model (singleton) ────────────────
+const SiteSettingsSchema = new mongoose.Schema({
+  singleton:        { type: String, default: 'settings', unique: true },
+  // AdSense
+  adsenseEnabled:   { type: Boolean, default: false },
+  adsenseId:        { type: String, default: '' },
+  adSlotHeader:     { type: String, default: '' },
+  adSlotSidebar:    { type: String, default: '' },
+  adSlotInArticle:  { type: String, default: '' },
+  adSlotFooter:     { type: String, default: '' },
+  // SEO
+  robotsTxt:        { type: String, default: 'User-agent: *\nAllow: /\nSitemap: /sitemap.xml' },
+  googleVerification: { type: String, default: '' },
+  defaultOgImage:   { type: String, default: '' },
+  // Site
+  maintenanceMode:  { type: Boolean, default: false },
+}, { timestamps: true });
+
+const SiteSettings = mongoose.model('SiteSettings', SiteSettingsSchema);
+
+module.exports = {
+  User,
+  Category,
+  Post,
+  Comment,
+  PostRevision,
+  AffiliateLink,
+  SiteSettings,
+};

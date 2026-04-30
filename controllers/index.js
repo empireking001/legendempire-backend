@@ -220,16 +220,89 @@ exports.adminGetStats = async (req, res) => {
 exports.createPost = async (req, res) => {
   try {
     const data = { ...req.body, author: req.user.id };
-    if (req.body.tags && typeof req.body.tags === 'string')
-      data.tags = req.body.tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+    if (req.body.tags && typeof req.body.tags === "string")
+      data.tags = req.body.tags
+        .split(",")
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean);
+
+    // Handle scheduler: if scheduledAt is set, keep as draft until then
+    if (data.scheduledAt && new Date(data.scheduledAt) > new Date()) {
+      data.status = "draft";
+    }
+
     const post = await Post.create(data);
-    if (post.status === 'published') await Category.findByIdAndUpdate(post.category, { $inc: { postCount: 1 } });
-    const populated = await Post.findById(post._id).populate('category', 'name slug color').populate('author', 'name');
-    res.status(201).json({ success: true, data: populated, message: 'Post created!' });
-  } catch (e) {
-    if (e.name === 'ValidationError')
-      return res.status(400).json({ success: false, message: Object.values(e.errors).map(x => x.message).join(', ') });
-    res.status(500).json({ success: false, message: e.message });
+    if (post.status === "published")
+      await Category.findByIdAndUpdate(post.category, {
+        $inc: { postCount: 1 },
+      });
+
+    const populated = await Post.findById(post._id)
+      .populate("category", "name slug color")
+      .populate("author", "name");
+    res
+      .status(201)
+      .json({ success: true, data: populated, message: "Post created!" });
+  } catch (err) {
+    if (err.name === "ValidationError")
+      return res.status(400).json({
+        success: false,
+        message: Object.values(err.errors)
+          .map((x) => x.message)
+          .join(", "),
+      });
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Duplicate post ─────────────────────────────────
+exports.duplicatePost = async (req, res) => {
+  try {
+    const original = await Post.findById(req.params.id);
+    if (!original)
+      return res
+        .status(404)
+        .json({ success: false, message: "Post not found." });
+
+    const {
+      _id,
+      slug,
+      createdAt,
+      updatedAt,
+      publishedAt,
+      views,
+      likes,
+      likedBy,
+      commentsCount,
+      ...rest
+    } = original.toObject();
+
+    const duplicate = await Post.create({
+      ...rest,
+      title: `${original.title} (Copy)`,
+      slug: undefined, // will be auto-generated
+      status: "draft",
+      isFeatured: false,
+      views: 0,
+      likes: 0,
+      likedBy: [],
+      commentsCount: 0,
+      author: req.user.id,
+    });
+
+    const populated = await Post.findById(duplicate._id)
+      .populate("category", "name slug color")
+      .populate("author", "name");
+
+    res
+      .status(201)
+      .json({
+        success: true,
+        data: populated,
+        message: "Post duplicated as draft!",
+      });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

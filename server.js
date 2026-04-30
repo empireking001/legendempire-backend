@@ -75,12 +75,22 @@ mongoose.connect(process.env.MONGODB_URI)
   });
 
 // ── Routes ────────────────────────────────────────
-app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/posts", require("./routes/postRoutes"));
-app.use("/api/categories", require("./routes/categoryRoutes"));
-app.use("/api/comments", require("./routes/commentRoutes"));
-app.use("/api/upload", require("./routes/uploadRoutes"));
-app.use("/api/subscribers", require("./routes/subscriberRoutes"));
+// ── Routes ────────────────────────────────────────
+app.use('/api/auth',          require('./routes/authRoutes'));
+app.use('/api/posts',         require('./routes/postRoutes'));
+app.use('/api/categories',    require('./routes/categoryRoutes'));
+app.use('/api/comments',      require('./routes/commentRoutes'));
+app.use('/api/upload',        require('./routes/uploadRoutes'));
+app.use('/api/subscribers',   require('./routes/subscriberRoutes'));
+app.use('/api/social-groups', require('./routes/socialGroupRoutes'));
+app.use('/api/analytics',     require('./routes/analyticsRoutes'));
+app.use('/api/affiliate',     require('./routes/affiliateRoutes'));
+app.use('/api/revisions',     require('./routes/revisionRoutes'));
+app.use('/api/seo',           require('./routes/seoRoutes'));
+
+// Public sitemap + robots (without /api prefix so Google can find them)
+app.get('/sitemap.xml', require('./controllers/seoController').getSitemap);
+app.get('/robots.txt',  require('./controllers/seoController').getRobots);
 
 // ── Health check ──────────────────────────────────
 app.get('/api/health', (req, res) => {
