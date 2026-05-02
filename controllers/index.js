@@ -188,6 +188,30 @@ exports.likePost = async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
 
+exports.reactPost = async (req, res) => {
+  try {
+    const { reaction } = req.body;
+    const allowed = ["fire", "mindblown", "hundred", "pray"];
+    if (!allowed.includes(reaction))
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid reaction." });
+
+    const ip = req.ip || "unknown";
+    const key = `reaction_${reaction}`;
+    const post = await Post.findById(req.params.id);
+    if (!post)
+      return res.status(404).json({ success: false, message: "Not found." });
+
+    const inc = {};
+    inc[`reactions.${reaction}`] = 1;
+    await Post.findByIdAndUpdate(req.params.id, { $inc: inc });
+    const updated = await Post.findById(req.params.id);
+    res.json({ success: true, reactions: updated.reactions });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
 exports.adminGetPosts = async (req, res) => {
   try {
     const page = +req.query.page || 1, limit = +req.query.limit || 20;

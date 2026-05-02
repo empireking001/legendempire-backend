@@ -19,5 +19,6 @@ r.get('/trending',          ctrl.getTrending);
 r.get('/',                  ctrl.getPosts);
 r.get('/:slug',             ctrl.getPostBySlug);
 r.post('/:id/like',         ctrl.likePost);
+r.post("/:id/react", ctrl.reactPost);
 
 module.exports = r;

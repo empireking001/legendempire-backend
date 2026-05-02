@@ -82,6 +82,12 @@ const PostSchema = new mongoose.Schema(
     metaDesc: { type: String, default: "" },
     views: { type: Number, default: 0 },
     likes: { type: Number, default: 0 },
+    reactions: {
+      fire: { type: Number, default: 0 },
+      mindblown: { type: Number, default: 0 },
+      hundred: { type: Number, default: 0 },
+      pray: { type: Number, default: 0 },
+    },
     likedBy: [{ type: String }],
     commentsCount: { type: Number, default: 0 },
     isFeatured: { type: Boolean, default: false },
