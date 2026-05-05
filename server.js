@@ -120,6 +120,34 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`\n🚀 LegendEmpire API running on port ${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/api/health\n`);
+
+  // Self-ping every 14 minutes to prevent Render free tier sleeping
+  if (process.env.NODE_ENV === "production") {
+    const selfUrl =
+      process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    setInterval(
+      async () => {
+        try {
+          const https = require("https");
+          const http = require("http");
+          const lib = selfUrl.startsWith("https") ? https : http;
+          lib
+            .get(`${selfUrl}/api/health`, (res) => {
+              console.log(
+                `[Keep-alive] Self-ping: ${res.statusCode} at ${new Date().toISOString()}`,
+              );
+            })
+            .on("error", (err) => {
+              console.warn("[Keep-alive] Self-ping failed:", err.message);
+            });
+        } catch (err) {
+          console.warn("[Keep-alive] error:", err.message);
+        }
+      },
+      14 * 60 * 1000,
+    ); // every 14 minutes
+    console.log("✅ Keep-alive self-ping enabled");
+  }
 });
 
 module.exports = app;
