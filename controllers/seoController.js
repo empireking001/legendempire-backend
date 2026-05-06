@@ -106,3 +106,73 @@ exports.getRobots = async (req, res) => {
     res.status(500).send("User-agent: *\nAllow: /");
   }
 };
+
+// ── Broken Link Checker ────────────────────────────
+exports.checkBrokenLinks = async (req, res) => {
+  try {
+    const { Post } = require('../models');
+    const posts = await Post.find({ status: 'published' })
+      .select('title slug content').limit(20);
+
+    const results = [];
+
+    for (const post of posts) {
+      // Extract external URLs from content
+      const urlRegex = /href="(https?:\/\/[^"]+)"/g;
+      const urls     = [];
+      let match;
+      while ((match = urlRegex.exec(post.content)) !== null) {
+        if (!match[1].includes('legendempire')) urls.push(match[1]);
+      }
+
+      const checked = await Promise.all(
+        urls.slice(0, 5).map(async url => {
+          try {
+            const controller = new AbortController();
+            const timeout    = setTimeout(() => controller.abort(), 8000);
+            const r = await fetch(url, {
+              method:  'HEAD',
+              signal:  controller.signal,
+              headers: { 'User-Agent': 'LegendEmpireLinkChecker/1.0' },
+            });
+            clearTimeout(timeout);
+            return { url, status: r.status, ok: r.ok };
+          } catch {
+            return { url, status: 0, ok: false, error: 'Unreachable' };
+          }
+        })
+      );
+
+      const broken = checked.filter(c => !c.ok);
+      if (broken.length > 0) {
+        results.push({ post: { title: post.title, slug: post.slug }, broken });
+      }
+    }
+
+    res.json({ success: true, data: results, checked: posts.length });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── Content Refresh Reminder ───────────────────────
+exports.getStaleContent = async (req, res) => {
+  try {
+    const { Post } = require('../models');
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const stale = await Post.find({
+      status:    'published',
+      updatedAt: { $lt: sixMonthsAgo },
+    })
+      .select('title slug views updatedAt publishedAt category')
+      .populate('category', 'name color icon')
+      .sort({ views: -1 })
+      .limit(20);
+
+    res.json({ success: true, data: stale });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

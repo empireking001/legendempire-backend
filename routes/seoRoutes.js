@@ -10,5 +10,7 @@ r.get("/robots.txt", ctrl.getRobots);
 // Admin routes
 r.get("/settings", protect, adminOnly, ctrl.getSettings);
 r.post("/settings", protect, adminOnly, ctrl.saveSettings);
+r.get("/broken-links", protect, adminOnly, ctrl.checkBrokenLinks);
+r.get("/stale-content", protect, adminOnly, ctrl.getStaleContent);
 
 module.exports = r;
