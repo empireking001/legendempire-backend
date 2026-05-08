@@ -87,6 +87,10 @@ app.use('/api/analytics',     require('./routes/analyticsRoutes'));
 app.use('/api/affiliate',     require('./routes/affiliateRoutes'));
 app.use('/api/revisions',     require('./routes/revisionRoutes'));
 app.use('/api/seo',           require('./routes/seoRoutes'));
+app.use("/api/contact", require("./routes/contactRoutes"));
+app.use("/api/email-tracking", require("./routes/emailTrackingRoutes"));
+app.use("/api/forum", require("./routes/forumRoutes"));
+app.use("/api/telegram", require("./routes/telegramRoutes"));
 
 // Public sitemap + robots (without /api prefix so Google can find them)
 app.get('/sitemap.xml', require('./controllers/seoController').getSitemap);

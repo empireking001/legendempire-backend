@@ -2,6 +2,13 @@ const Subscriber = require("../models/Subscriber");
 const EmailConfig = require("../models/EmailConfig");
 const { Post } = require("../models");
 
+// ── TRACKING IMPORTS ────────────────────────────────
+const EmailLog = require("../models/EmailLog");
+const {
+  generateTrackingId,
+  injectTracking,
+} = require("./emailTrackingController");
+
 // ── Helper: get or create singleton email config ──
 async function getConfig() {
   let cfg = await EmailConfig.findOne({ singleton: "config" });
@@ -64,7 +71,6 @@ exports.subscribe = async (req, res) => {
       name: name?.trim() || "",
     });
 
-    // Send welcome email if enabled
     const cfg = await getConfig();
     if (cfg.sendWelcome && cfg.smtpHost && cfg.fromEmail) {
       const welcomeHtml = `
@@ -72,11 +78,7 @@ exports.subscribe = async (req, res) => {
           <h1 style="color:#0d9488;font-size:24px;margin-bottom:8px">Welcome to LegendEmpire! 🎉</h1>
           <p style="color:#555;font-size:15px;line-height:1.6">
             Hi ${sub.name || "there"},<br><br>
-            You're now subscribed to <strong>LegendEmpire</strong> — Nigeria's trusted source for
-            scholarships, remote jobs, technology, and financial freedom.
-          </p>
-          <p style="color:#555;font-size:15px;line-height:1.6">
-            We'll send you the best opportunities and insights regularly. No spam. Ever.
+            You're now subscribed to <strong>LegendEmpire</strong> — Nigeria's source for scholarships and jobs.
           </p>
           <a href="${cfg.unsubscribeUrl || "#"}" style="color:#999;font-size:12px">Unsubscribe</a>
         </div>
@@ -91,15 +93,12 @@ exports.subscribe = async (req, res) => {
 
     res
       .status(201)
-      .json({
-        success: true,
-        message: "Subscribed successfully! Welcome aboard.",
-      });
+      .json({ success: true, message: "Subscribed successfully!" });
   } catch (err) {
     if (err.code === 11000)
       return res
         .status(400)
-        .json({ success: false, message: "This email is already subscribed." });
+        .json({ success: false, message: "Already subscribed." });
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -113,10 +112,7 @@ exports.unsubscribe = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Email required." });
     await Subscriber.findOneAndUpdate({ email }, { status: "unsubscribed" });
-    res.json({
-      success: true,
-      message: "You have been unsubscribed successfully.",
-    });
+    res.json({ success: true, message: "Unsubscribed successfully." });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -143,16 +139,10 @@ exports.getSubscribers = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(limit);
 
-    const activeCount = await Subscriber.countDocuments({ status: "active" });
-    const unsubCount = await Subscriber.countDocuments({
-      status: "unsubscribed",
-    });
-
     res.json({
       success: true,
       data: subs,
       pagination: { total, page, pages: Math.ceil(total / limit) },
-      stats: { active: activeCount, unsubscribed: unsubCount },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -173,7 +163,6 @@ exports.deleteSubscriber = async (req, res) => {
 exports.getEmailConfig = async (req, res) => {
   try {
     const cfg = await getConfig();
-    // Never return SMTP password in response
     const safe = cfg.toObject();
     safe.smtpPass = safe.smtpPass ? "••••••••" : "";
     res.json({ success: true, data: safe });
@@ -203,10 +192,7 @@ exports.saveEmailConfig = async (req, res) => {
     fields.forEach((f) => {
       if (req.body[f] !== undefined) cfg[f] = req.body[f];
     });
-    // Only update password if a real value was sent
-    if (req.body.smtpPass) {
-      cfg.smtpPass = req.body.smtpPass;
-    }
+    if (req.body.smtpPass) cfg.smtpPass = req.body.smtpPass;
     await cfg.save();
     res.json({ success: true, message: "Email settings saved." });
   } catch (err) {
@@ -218,28 +204,16 @@ exports.saveEmailConfig = async (req, res) => {
 exports.testEmail = async (req, res) => {
   try {
     const cfg = await getConfig();
-    if (!cfg.smtpHost || !cfg.fromEmail)
-      return res
-        .status(400)
-        .json({ success: false, message: "Configure SMTP settings first." });
     const sent = await sendEmail({
       to: req.user.email,
       subject: "LegendEmpire — Email Test ✅",
-      html: "<p>Your email configuration is working correctly!</p>",
+      html: "<p>SMTP working!</p>",
       cfg,
     });
-    if (sent)
-      res.json({
-        success: true,
-        message: `Test email sent to ${req.user.email}`,
-      });
-    else
-      res
-        .status(500)
-        .json({
-          success: false,
-          message: "SMTP connection failed. Check your settings.",
-        });
+    res.json({
+      success: !!sent,
+      message: sent ? "Test email sent." : "SMTP failed.",
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -252,11 +226,10 @@ exports.sendDigest = async (req, res) => {
     if (!cfg.smtpHost || !cfg.fromEmail)
       return res
         .status(400)
-        .json({ success: false, message: "Configure SMTP settings first." });
+        .json({ success: false, message: "Configure SMTP first." });
 
     const { subject, customHtml } = req.body;
 
-    // Get today's or recent posts
     const since = new Date();
     since.setDate(since.getDate() - 1);
     let posts = await Post.find({
@@ -276,22 +249,13 @@ exports.sendDigest = async (req, res) => {
 
     const siteUrl =
       process.env.FRONTEND_URL || "https://legendempire.vercel.app";
-
     const postsHtml = posts
       .map(
         (p) => `
       <div style="border-bottom:1px solid #eee;padding:16px 0">
         ${p.coverImage ? `<img src="${p.coverImage}" style="width:100%;border-radius:8px;margin-bottom:10px" />` : ""}
-        <span style="background:${p.category?.color || "#0d9488"}22;color:${p.category?.color || "#0d9488"};
-          padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">
-          ${p.category?.icon || ""} ${p.category?.name || ""}
-        </span>
-        <h3 style="margin:8px 0 6px;font-size:16px">
-          <a href="${siteUrl}/post/${p.slug}" style="color:#1a1714;text-decoration:none">${p.title}</a>
-        </h3>
-        <p style="color:#75685a;font-size:13px;line-height:1.5;margin:0 0 8px">${p.excerpt?.substring(0, 120) || ""}…</p>
-        <a href="${siteUrl}/post/${p.slug}"
-          style="color:#0d9488;font-size:13px;font-weight:600;text-decoration:none">Read more →</a>
+        <h3 style="margin:8px 0 6px;font-size:16px"><a href="${siteUrl}/post/${p.slug}" style="color:#1a1714;text-decoration:none">${p.title}</a></h3>
+        <p style="color:#75685a;font-size:13px;">${p.excerpt?.substring(0, 120) || ""}…</p>
       </div>
     `,
       )
@@ -300,42 +264,55 @@ exports.sendDigest = async (req, res) => {
     const emailHtml =
       customHtml ||
       `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:0">
-        <div style="background:#0d9488;padding:24px;text-align:center">
-          <h1 style="color:white;margin:0;font-size:22px">LegendEmpire</h1>
-          <p style="color:rgba(255,255,255,0.8);margin:4px 0 0;font-size:13px">Your daily digest</p>
-        </div>
-        <div style="padding:24px">
-          <h2 style="font-size:18px;color:#1a1714;margin:0 0 16px">Latest from LegendEmpire</h2>
-          ${postsHtml}
-        </div>
-        <div style="background:#f8f7f4;padding:16px 24px;text-align:center">
-          <p style="color:#a89d8d;font-size:11px;margin:0">
-            You're receiving this because you subscribed at <a href="${siteUrl}" style="color:#0d9488">${siteUrl}</a><br>
-            <a href="${siteUrl}/api/subscribers/unsubscribe?email={{email}}" style="color:#a89d8d">Unsubscribe</a>
-          </p>
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:#0d9488;padding:24px;text-align:center"><h1 style="color:white;margin:0;">LegendEmpire</h1></div>
+        <div style="padding:24px">${postsHtml}</div>
+        <div style="background:#f8f7f4;padding:16px;text-align:center">
+          <p style="font-size:11px"><a href="${siteUrl}/api/subscribers/unsubscribe?email={{email}}">Unsubscribe</a></p>
         </div>
       </div>
     `;
 
-    // Send to all active subscribers
     const subscribers = await Subscriber.find({ status: "active" });
+
+    // ── START TRACKING LOGIC ─────────────────────────
+    const trackingId = generateTrackingId();
+    const baseUrl =
+      process.env.RENDER_EXTERNAL_URL ||
+      "https://backend-blog-1b98.onrender.com";
+
+    await EmailLog.create({
+      subject:
+        subject ||
+        `LegendEmpire Daily Digest — ${new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}`,
+      sentTo: subscribers.length,
+      trackingId,
+      strategy: cfg.strategy || "manual",
+      html: emailHtml.substring(0, 500),
+    });
+    // ── END TRACKING LOGIC ───────────────────────────
+
     let sent = 0,
       failed = 0;
 
     for (const sub of subscribers) {
-      const personalised = emailHtml.replace(
-        "{{email}}",
-        encodeURIComponent(sub.email),
+      // ── INJECT TRACKING PIXEL & WRAPPERS ────────────
+      const tracked = injectTracking(
+        emailHtml.replace("{{email}}", encodeURIComponent(sub.email)),
+        trackingId,
+        sub.email,
+        baseUrl,
       );
+
       const ok = await sendEmail({
         to: sub.email,
         subject:
           subject ||
           `LegendEmpire Daily Digest — ${new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}`,
-        html: personalised,
+        html: tracked,
         cfg,
       });
+
       if (ok) {
         sent++;
         sub.lastEmailAt = new Date();
@@ -348,7 +325,7 @@ exports.sendDigest = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Digest sent to ${sent} subscribers.${failed ? ` ${failed} failed.` : ""}`,
+      message: `Digest sent to ${sent} subscribers.`,
       sent,
       failed,
     });

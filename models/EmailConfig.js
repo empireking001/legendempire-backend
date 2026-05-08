@@ -33,6 +33,14 @@ const EmailConfigSchema = new mongoose.Schema(
 
     // Unsubscribe footer
     unsubscribeUrl: { type: String, default: "" },
+
+    // Telegram settings
+    telegramBotToken: { type: String, default: "" },
+    telegramChatId: { type: String, default: "" },
+    telegramEnabled: { type: Boolean, default: false },
+
+    // Email tracking
+    trackingEnabled: { type: Boolean, default: true },
   },
   { timestamps: true },
 );
