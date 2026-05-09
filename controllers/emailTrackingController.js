@@ -1,9 +1,10 @@
 const EmailLog = require("../models/EmailLog");
 const Subscriber = require("../models/Subscriber");
-const { v4: uuidv4 } = require("uuid");
 
 // ── Generate tracking ID ───────────────────────────
-exports.generateTrackingId = () => uuidv4().replace(/-/g, "");
+exports.generateTrackingId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+};
 
 // ── Inject tracking into email HTML ───────────────
 exports.injectTracking = (html, trackingId, subscriberEmail, baseUrl) => {
