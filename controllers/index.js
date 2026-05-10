@@ -277,7 +277,12 @@ exports.createPost = async (req, res) => {
       });
     res.status(500).json({ success: false, message: err.message });
   }
-};
+  // Auto-post to Telegram when published
+  if (post.status === "published") {
+    const { autoPostToTelegram } = require("./telegramController");
+    autoPostToTelegram(populated).catch(() => {});
+  }
+};;
 
 // ── Duplicate post ─────────────────────────────────
 exports.duplicatePost = async (req, res) => {
