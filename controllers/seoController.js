@@ -1,4 +1,5 @@
 const { Post, Category, SiteSettings } = require("../models");
+const School = require("../models/School");
 
 // ── GET site settings ──────────────────────────────
 async function getSettings() {
@@ -73,6 +74,19 @@ exports.getSitemap = async (req, res) => {
     <loc>${siteUrl}/category/${cat.slug}</loc>
     <lastmod>${(cat.updatedAt || new Date()).toISOString().split("T")[0]}</lastmod>
     <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+    });
+
+    const schools = await School.find({ isActive: true }).select(
+      "slug updatedAt",
+    );
+    schools.forEach((school) => {
+      xml += `
+  <url>
+    <loc>${siteUrl}/schools/${school.slug}</loc>
+    <lastmod>${(school.updatedAt || new Date()).toISOString().split("T")[0]}</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`;
     });

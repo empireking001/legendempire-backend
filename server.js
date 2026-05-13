@@ -91,6 +91,7 @@ app.use("/api/contact", require("./routes/contactRoutes"));
 app.use("/api/email-tracking", require("./routes/emailTrackingRoutes"));
 app.use("/api/forum", require("./routes/forumRoutes"));
 app.use("/api/telegram", require("./routes/telegramRoutes"));
+app.use("/api/schools", require("./routes/schoolRoutes"));
 
 // Public sitemap + robots (without /api prefix so Google can find them)
 app.get('/sitemap.xml', require('./controllers/seoController').getSitemap);

@@ -91,6 +91,8 @@ const PostSchema = new mongoose.Schema(
     likedBy: [{ type: String }],
     commentsCount: { type: Number, default: 0 },
     isFeatured: { type: Boolean, default: false },
+    // Add this line to PostSchema:
+    schools: [{ type: mongoose.Schema.Types.ObjectId, ref: "School" }],
     // Scheduler
     scheduledAt: { type: Date, default: null },
     // Sponsored
