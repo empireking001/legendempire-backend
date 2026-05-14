@@ -1,5 +1,5 @@
 const School = require("../models/School");
-const Post = require('../models');
+const Post = require("../models");
 
 // ── Helpers ────────────────────────────────────────
 const TYPE_LABELS = {
