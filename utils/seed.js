@@ -1,21 +1,21 @@
-const { User, Category } = require('../models');
+const { User, Category } = require("../models");
 const seedSchools = require("./seedSchools");
 
 module.exports = async function seed() {
   try {
-    // Create admin if none exists
-    if (!(await User.findOne({ role: 'admin' }))) {
+    // ── Create admin if none exists ────────────────
+    if (!(await User.findOne({ role: "admin" }))) {
       await User.create({
-        name:     'Admin',
-        email:    process.env.ADMIN_EMAIL    || 'admin@legendempire.com',
-        password: process.env.ADMIN_PASSWORD || 'Admin@LegendEmpire2025',
-        role:     'admin',
-        bio:      'Publisher at LegendEmpire',
+        name: "Admin",
+        email: process.env.ADMIN_EMAIL || "admin@legendempire.com",
+        password: process.env.ADMIN_PASSWORD || "Admin@LegendEmpire2025",
+        role: "admin",
+        bio: "Publisher at LegendEmpire",
       });
-      console.log('✅ Admin account created →', process.env.ADMIN_EMAIL);
+      console.log("✅ Admin account created →", process.env.ADMIN_EMAIL);
     }
 
-    // Create default categories if none exist
+    // ── Create default categories if none exist ────
     if ((await Category.countDocuments()) === 0) {
       const cats = [
         {
@@ -69,11 +69,11 @@ module.exports = async function seed() {
       ];
       await Category.insertMany(cats);
       console.log("✅ Default categories created");
-
-      // Seed schools
-      await seedSchools();
     }
+
+    // ── Seed schools (runs independently, always checks its own count) ──
+    await seedSchools();
   } catch (err) {
-    console.warn('⚠ Seed warning:', err.message);
+    console.warn("⚠ Seed warning:", err.message);
   }
 };
