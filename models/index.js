@@ -107,6 +107,7 @@ const PostSchema = new mongoose.Schema(
     currentVersion: { type: Number, default: 1 },
     readTime: { type: Number, default: 1 },
     publishedAt: { type: Date, default: null },
+    isBreaking: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
