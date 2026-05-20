@@ -8,6 +8,7 @@ r.post("/", ctrl.subscribe);
 r.get("/unsubscribe", ctrl.unsubscribe);
 
 // Admin
+r.get("/admin/count", protect, adminOnly, ctrl.getSubscriberCount); // ← NEW: dedicated count endpoint
 r.get("/admin/list", protect, adminOnly, ctrl.getSubscribers);
 r.delete("/admin/:id", protect, adminOnly, ctrl.deleteSubscriber);
 r.get("/admin/config", protect, adminOnly, ctrl.getEmailConfig);

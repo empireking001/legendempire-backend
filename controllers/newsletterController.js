@@ -91,9 +91,18 @@ exports.subscribe = async (req, res) => {
       });
     }
 
-    res
-      .status(201)
-      .json({ success: true, message: "Subscribed successfully!" });
+    // Return full subscriber data so frontend can confirm save
+    res.status(201).json({
+      success: true,
+      message: "Subscribed successfully! 🎉 Welcome to LegendEmpire.",
+      subscriber: {
+        id: sub._id,
+        email: sub.email,
+        name: sub.name,
+        status: sub.status,
+        createdAt: sub.createdAt,
+      },
+    });
   } catch (err) {
     if (err.code === 11000)
       return res
@@ -118,6 +127,29 @@ exports.unsubscribe = async (req, res) => {
   }
 };
 
+// ── ADMIN: Get subscriber counts (for dashboard stats) ──
+// GET /api/subscribers/admin/count
+exports.getSubscriberCount = async (req, res) => {
+  try {
+    const total = await Subscriber.countDocuments({});
+    const active = await Subscriber.countDocuments({ status: "active" });
+    const unsubscribed = await Subscriber.countDocuments({
+      status: "unsubscribed",
+    });
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        active,
+        unsubscribed,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // ── ADMIN: Get all subscribers ─────────────────────
 exports.getSubscribers = async (req, res) => {
   try {
@@ -126,7 +158,9 @@ exports.getSubscribers = async (req, res) => {
     const status = req.query.status || "active";
     const q = req.query.search || "";
 
-    const filter = { status };
+    const filter = {};
+    // Only filter by status if explicitly passed and not "all"
+    if (status && status !== "all") filter.status = status;
     if (q)
       filter.$or = [
         { email: { $regex: q, $options: "i" } },
@@ -134,6 +168,9 @@ exports.getSubscribers = async (req, res) => {
       ];
 
     const total = await Subscriber.countDocuments(filter);
+    const totalActive = await Subscriber.countDocuments({ status: "active" });
+    const totalAll = await Subscriber.countDocuments({});
+
     const subs = await Subscriber.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -142,6 +179,12 @@ exports.getSubscribers = async (req, res) => {
     res.json({
       success: true,
       data: subs,
+      // counts always available regardless of filter
+      counts: {
+        total: totalAll,
+        active: totalActive,
+        filtered: total,
+      },
       pagination: { total, page, pages: Math.ceil(total / limit) },
     });
   } catch (err) {
@@ -296,7 +339,6 @@ exports.sendDigest = async (req, res) => {
       failed = 0;
 
     for (const sub of subscribers) {
-      // ── INJECT TRACKING PIXEL & WRAPPERS ────────────
       const tracked = injectTracking(
         emailHtml.replace("{{email}}", encodeURIComponent(sub.email)),
         trackingId,
