@@ -273,6 +273,7 @@ exports.sendDigest = async (req, res) => {
 
     const { subject, customHtml } = req.body;
 
+    // ✅ Fetch posts
     const since = new Date();
     since.setDate(since.getDate() - 1);
     let posts = await Post.find({
@@ -290,17 +291,27 @@ exports.sendDigest = async (req, res) => {
         .limit(5);
     }
 
+    const subscribers = await Subscriber.find({ status: "active" });
+
+    if (subscribers.length === 0)
+      return res
+        .status(400)
+        .json({ success: false, message: "No active subscribers." });
+
     const siteUrl =
       process.env.FRONTEND_URL || "https://legendempire.vercel.app";
+
     const postsHtml = posts
       .map(
         (p) => `
-      <div style="border-bottom:1px solid #eee;padding:16px 0">
-        ${p.coverImage ? `<img src="${p.coverImage}" style="width:100%;border-radius:8px;margin-bottom:10px" />` : ""}
-        <h3 style="margin:8px 0 6px;font-size:16px"><a href="${siteUrl}/post/${p.slug}" style="color:#1a1714;text-decoration:none">${p.title}</a></h3>
-        <p style="color:#75685a;font-size:13px;">${p.excerpt?.substring(0, 120) || ""}…</p>
-      </div>
-    `,
+        <div style="border-bottom:1px solid #eee;padding:16px 0">
+          ${p.coverImage ? `<img src="${p.coverImage}" style="width:100%;border-radius:8px;margin-bottom:10px" />` : ""}
+          <h3 style="margin:8px 0 6px;font-size:16px">
+            <a href="${siteUrl}/post/${p.slug}" style="color:#1a1714;text-decoration:none">${p.title}</a>
+          </h3>
+          <p style="color:#75685a;font-size:13px;">${p.excerpt?.substring(0, 120) || ""}…</p>
+        </div>
+      `,
       )
       .join("");
 
@@ -308,71 +319,92 @@ exports.sendDigest = async (req, res) => {
       customHtml ||
       `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
-        <div style="background:#0d9488;padding:24px;text-align:center"><h1 style="color:white;margin:0;">LegendEmpire</h1></div>
+        <div style="background:#0d9488;padding:24px;text-align:center">
+          <h1 style="color:white;margin:0;">LegendEmpire</h1>
+        </div>
         <div style="padding:24px">${postsHtml}</div>
         <div style="background:#f8f7f4;padding:16px;text-align:center">
-          <p style="font-size:11px"><a href="${siteUrl}/api/subscribers/unsubscribe?email={{email}}">Unsubscribe</a></p>
+          <p style="font-size:11px">
+            <a href="${siteUrl}/api/subscribers/unsubscribe?email={{email}}">Unsubscribe</a>
+          </p>
         </div>
       </div>
     `;
 
-    const subscribers = await Subscriber.find({ status: "active" });
+    const digestSubject =
+      subject ||
+      `LegendEmpire Daily Digest — ${new Date().toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      })}`;
 
-    // ── START TRACKING LOGIC ─────────────────────────
     const trackingId = generateTrackingId();
     const baseUrl =
       process.env.RENDER_EXTERNAL_URL ||
       "https://backend-blog-1b98.onrender.com";
 
+    // ✅ Log the email send attempt
     await EmailLog.create({
-      subject:
-        subject ||
-        `LegendEmpire Daily Digest — ${new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}`,
+      subject: digestSubject,
       sentTo: subscribers.length,
       trackingId,
       strategy: cfg.strategy || "manual",
       html: emailHtml.substring(0, 500),
     });
-    // ── END TRACKING LOGIC ───────────────────────────
 
+    // ✅ Respond immediately so frontend doesn't timeout
+    res.json({
+      success: true,
+      message: `Sending digest to ${subscribers.length} subscribers in the background...`,
+    });
+
+    // ✅ Send emails in background AFTER responding
     let sent = 0,
       failed = 0;
 
     for (const sub of subscribers) {
-      const tracked = injectTracking(
-        emailHtml.replace("{{email}}", encodeURIComponent(sub.email)),
-        trackingId,
-        sub.email,
-        baseUrl,
-      );
+      try {
+        const tracked = injectTracking(
+          emailHtml.replace("{{email}}", encodeURIComponent(sub.email)),
+          trackingId,
+          sub.email,
+          baseUrl,
+        );
 
-      const ok = await sendEmail({
-        to: sub.email,
-        subject:
-          subject ||
-          `LegendEmpire Daily Digest — ${new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}`,
-        html: tracked,
-        cfg,
-      });
+        const ok = await sendEmail({
+          to: sub.email,
+          subject: digestSubject,
+          html: tracked,
+          cfg,
+        });
 
-      if (ok) {
-        sent++;
-        sub.lastEmailAt = new Date();
-        await sub.save();
-      } else failed++;
+        if (ok) {
+          sent++;
+          sub.lastEmailAt = new Date();
+          await sub.save();
+        } else {
+          failed++;
+        }
+      } catch (subErr) {
+        console.error(`Failed to send to ${sub.email}:`, subErr.message);
+        failed++;
+      }
     }
 
     cfg.digestLastSent = new Date();
     await cfg.save();
 
-    res.json({
-      success: true,
-      message: `Digest sent to ${sent} subscribers.`,
-      sent,
-      failed,
-    });
+    console.log(
+      `✅ Digest complete — sent: ${sent}, failed: ${failed}, total: ${subscribers.length}`,
+    );
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    // Only reaches here if something fails BEFORE the res.json above
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: err.message });
+    } else {
+      console.error("Background digest error:", err.message);
+    }
   }
 };
 
