@@ -20,6 +20,6 @@ r.get('/trending',  cache(5 * 60 * 1000), ctrl.getTrending);   // 5 min cache
 r.get('/',                  ctrl.getPosts);
 r.get('/:slug',             ctrl.getPostBySlug);
 r.post('/:id/like',         ctrl.likePost);
-r.post("//:id/react",       ctrl.reactPost);
+r.post('/:id/react',       ctrl.reactPost);
 
 module.exports = r;
