@@ -1,3 +1,7 @@
+const dns = require("dns");
+dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
+dns.setDefaultResultOrder("ipv4first");
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -17,112 +21,83 @@ app.use(
 );
 
 // ── CORS ─────────────────────────────────────────
-// Bulletproof CORS — allows Vercel, localhost, and any preview URLs
+const allowedOrigins = [
+  "https://frontend-blog-taupe.vercel.app",
+  "https://legendempire.vercel.app"
+];
+
 app.use(
   cors({
     origin: function (origin, callback) {
       // Allow requests with no origin (mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
 
-      const allowed = [
-        // Your specific frontend URLs
-        "https://frontend-blog-taupe.vercel.app",
-        "https://legendempire.vercel.app",
-        // Any Vercel preview deployment (*.vercel.app)
-        ".vercel.app",
-        // Local development
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-      ];
-
-      // Also allow whatever FRONTEND_URL is set to on Render
-      if (process.env.FRONTEND_URL) {
-        allowed.push(process.env.FRONTEND_URL);
-      }
-
-      const isAllowed = allowed.some((a) => {
-        if (a.startsWith(".")) return origin.endsWith(a); // wildcard suffix like .vercel.app
-        return origin === a || origin.startsWith(a);
-      });
+      const isAllowed = allowedOrigins.includes(origin) || 
+                        origin.endsWith(".vercel.app") || 
+                        origin.startsWith("http://localhost:") ||
+                        origin.startsWith("http://127.0.0.1:");
 
       if (isAllowed) {
-        callback(null, true);
+        return callback(null, true);
       } else {
-        console.warn("CORS blocked origin:", origin);
-        // In production still allow it — don't break the site over CORS config
-        // Remove the next line if you want strict blocking
-        callback(null, true);
+        return callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  }),
+  })
 );
 
-// ── Body Parsing ──────────────────────────────────
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-if (process.env.NODE_ENV !== "production") app.use(morgan("dev"));
+// ── Middleware ───────────────────────────────────
+app.use(morgan("dev"));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// ── Database ──────────────────────────────────────
+// ── Database Connection ──────────────────────────
 mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(async () => {
-    console.log("✅ MongoDB connected");
-    await require("./utils/seed")();
-  })
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("💾 MongoDB Connected Successfully"))
   .catch((err) => {
-    console.error("❌ MongoDB connection failed:", err.message);
+    console.error("❌ MongoDB Connection Error:", err.message);
     process.exit(1);
   });
 
-// ── Routes ────────────────────────────────────────
-// ── Routes ────────────────────────────────────────
+// ── Routes Registration ──────────────────────────
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/posts", require("./routes/postRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
 app.use("/api/comments", require("./routes/commentRoutes"));
 app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use("/api/subscribers", require("./routes/subscriberRoutes"));
-app.use("/api/social-groups", require("./routes/socialGroupRoutes"));
+app.use("/api/telegram", require("./routes/telegramRoutes"));
+app.use("/api/seo", require("./routes/seoRoutes"));
 app.use("/api/analytics", require("./routes/analyticsRoutes"));
 app.use("/api/affiliate", require("./routes/affiliateRoutes"));
-app.use("/api/revisions", require("./routes/revisionRoutes"));
-app.use("/api/seo", require("./routes/seoRoutes"));
+app.use("/api/social-groups", require("./routes/socialGroupRoutes"));
+app.use("/api/schools", require("./routes/schoolRoutes"));
+app.use("/api/forum", require("./routes/forumRoutes"));
 app.use("/api/contact", require("./routes/contactRoutes"));
 app.use("/api/email-tracking", require("./routes/emailTrackingRoutes"));
-app.use("/api/forum", require("./routes/forumRoutes"));
-app.use("/api/telegram", require("./routes/telegramRoutes"));
-app.use("/api/schools", require("./routes/schoolRoutes"));
+app.use("/api/revisions", require("./routes/revisionRoutes"));
 
-// Public sitemap + robots (without /api prefix so Google can find them)
-app.get("/sitemap.xml", require("./controllers/seoController").getSitemap);
-app.get("/robots.txt", require("./controllers/seoController").getRobots);
-
-// ── Health check ──────────────────────────────────
+// ── Public Health Endpoint ────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({
-    status: "OK",
-    env: process.env.NODE_ENV,
-    time: new Date().toISOString(),
-    db: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    success: true,
+    status: "UP",
+    timestamp: new Date(),
+    uptime: process.uptime(),
   });
 });
 
-// ── 404 handler ───────────────────────────────────
+// ── Catch 404 ─────────────────────────────────────
 app.use((req, res) => {
-  res
-    .status(404)
-    .json({
-      success: false,
-      message: `Route not found: ${req.method} ${req.path}`,
-    });
+  res.status(404).json({
+    success: false,
+    message: `Route not found: ${req.method} ${req.path}`,
+  });
 });
 
-// ── Global error handler ──────────────────────────
+// ── Global Error Handler ──────────────────────────
 app.use((err, req, res, next) => {
   console.error("Server error:", err.stack);
   res.status(err.status || 500).json({
@@ -134,7 +109,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`\n🚀 LegendEmpire API running on port ${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/api/health\n`);
 
   // Self-ping every 14 minutes to prevent Render free tier sleeping
   if (process.env.NODE_ENV === "production") {
@@ -149,20 +123,17 @@ app.listen(PORT, () => {
           lib
             .get(`${selfUrl}/api/health`, (res) => {
               console.log(
-                `[Keep-alive] Self-ping: ${res.statusCode} at ${new Date().toISOString()}`,
+                `[Keep-alive] Self-ping: ${res.statusCode} at ${new Date().toISOString()}`
               );
             })
             .on("error", (err) => {
               console.warn("[Keep-alive] Self-ping failed:", err.message);
             });
         } catch (err) {
-          console.warn("[Keep-alive] error:", err.message);
+          console.warn("[Keep-alive] Self-ping wrapper exception:", err.message);
         }
       },
-      14 * 60 * 1000,
-    ); // every 14 minutes
-    console.log("✅ Keep-alive self-ping enabled");
+      14 * 60 * 1000
+    );
   }
 });
-
-module.exports = app;

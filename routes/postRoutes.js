@@ -13,20 +13,13 @@ r.delete('/admin/:id',       protect, adminOnly, ctrl.deletePost);
 r.put('/admin/:id/feature',  protect, adminOnly, ctrl.featurePost);
 r.post('/admin/:id/duplicate', protect, adminOnly, ctrl.duplicatePost);
 
-// Public routes
-r.get('/featured',          ctrl.getFeatured);
-r.get('/homepage',          ctrl.getHomepage);
-r.get('/trending',          ctrl.getTrending);
-r.get('/',                  ctrl.getPosts);
-r.get('/:slug',             ctrl.getPostBySlug);
-r.post('/:id/like',         ctrl.likePost);
-r.post("/:id/react", ctrl.reactPost);
-
-// Public routes with caching
+// Public routes with caching applied cleanly
 r.get('/featured',  cache(3 * 60 * 1000), ctrl.getFeatured);   // 3 min cache
 r.get('/homepage',  cache(5 * 60 * 1000), ctrl.getHomepage);   // 5 min cache
 r.get('/trending',  cache(5 * 60 * 1000), ctrl.getTrending);   // 5 min cache
-r.get('/',          cache(2 * 60 * 1000), ctrl.getPosts);       // 2 min cache
-r.get('/:slug',     cache(10 * 60 * 1000), ctrl.getPostBySlug);// 10 min cache
+r.get('/',                  ctrl.getPosts);
+r.get('/:slug',             ctrl.getPostBySlug);
+r.post('/:id/like',         ctrl.likePost);
+r.post("//:id/react",       ctrl.reactPost);
 
 module.exports = r;

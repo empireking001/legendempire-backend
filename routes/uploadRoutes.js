@@ -22,7 +22,7 @@ r.post('/', protect, adminOnly, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded.' });
 
-    // Upload buffer to Cloudinary using upload_stream
+    // Upload buffer to Cloudinary using upload_stream with localized error tracking
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
@@ -30,11 +30,14 @@ r.post('/', protect, adminOnly, upload.single('image'), async (req, res) => {
           transformation: [{ width: 1200, crop: 'limit', quality: 'auto', fetch_format: 'auto' }],
         },
         (error, result) => {
-          if (error) reject(error);
-          else       resolve(result);
+          if (error) return reject(error);
+          resolve(result);
         }
       );
-      streamifier.createReadStream(req.file.buffer).pipe(stream);
+      
+      const readStream = streamifier.createReadStream(req.file.buffer);
+      readStream.on('error', (err) => reject(err)); // Prevents unhandled async stream crashes
+      readStream.pipe(stream);
     });
 
     res.json({
@@ -54,7 +57,7 @@ r.delete('/', protect, adminOnly, async (req, res) => {
     const { public_id } = req.body;
     if (!public_id) return res.status(400).json({ success: false, message: 'public_id required.' });
     await cloudinary.uploader.destroy(public_id);
-    res.json({ success: true, message: 'Image deleted.' });
+    res.json({ success: true, message: 'Image deleted from Cloudinary.' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

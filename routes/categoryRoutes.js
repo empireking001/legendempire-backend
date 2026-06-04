@@ -10,9 +10,8 @@ r.post('/admin',            protect, adminOnly, ctrl.createCategory);
 r.put('/admin/:id',         protect, adminOnly, ctrl.updateCategory);
 r.delete('/admin/:id',      protect, adminOnly, ctrl.deleteCategory);
 
-// Public routes
-r.get('/',                  ctrl.getCategories);
-r.get('/:slug',             ctrl.getCategoryBySlug);
+// Public routes with explicit caching at entry point
 r.get("/", cache(10 * 60 * 1000), ctrl.getCategories);
+r.get('/:slug',             ctrl.getCategoryBySlug);
 
 module.exports = r;
