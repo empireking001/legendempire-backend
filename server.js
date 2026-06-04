@@ -21,33 +21,27 @@ app.use(
 );
 
 // ── CORS ─────────────────────────────────────────
-// Bulletproof CORS — allows Vercel, localhost, and any preview URLs
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
 
       const allowed = [
-        // Your specific frontend URLs
         "https://frontend-blog-taupe.vercel.app",
         "https://legendempire.vercel.app",
-        // Any Vercel preview deployment (*.vercel.app)
         ".vercel.app",
-        // Local development
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
       ];
 
-      // Also allow whatever FRONTEND_URL is set to on Render
       if (process.env.FRONTEND_URL) {
         allowed.push(process.env.FRONTEND_URL);
       }
 
       const isAllowed = allowed.some((a) => {
-        if (a.startsWith(".")) return origin.endsWith(a); // wildcard suffix like .vercel.app
+        if (a.startsWith(".")) return origin.endsWith(a);
         return origin === a || origin.startsWith(a);
       });
 
@@ -55,8 +49,6 @@ app.use(
         callback(null, true);
       } else {
         console.warn("CORS blocked origin:", origin);
-        // In production still allow it — don't break the site over CORS config
-        // Remove the next line if you want strict blocking
         callback(null, true);
       }
     },
@@ -76,7 +68,6 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log("✅ MongoDB connected");
-    // Wrap your seed in a try/catch so a seed error doesn't crash the server connection
     try {
       await require("./utils/seed")();
     } catch (seedErr) {
@@ -87,7 +78,6 @@ mongoose
     console.error("❌ Initial MongoDB connection failed:", err.message);
   });
 
-// ── Routes ────────────────────────────────────────
 // ── Routes ────────────────────────────────────────
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/posts", require("./routes/postRoutes"));
@@ -106,7 +96,6 @@ app.use("/api/forum", require("./routes/forumRoutes"));
 app.use("/api/telegram", require("./routes/telegramRoutes"));
 app.use("/api/schools", require("./routes/schoolRoutes"));
 
-// Public sitemap + robots (without /api prefix so Google can find them)
 app.get("/sitemap.xml", require("./controllers/seoController").getSitemap);
 app.get("/robots.txt", require("./controllers/seoController").getRobots);
 
@@ -140,19 +129,26 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`\n🚀 LegendEmpire API running on port ${PORT}`);
-  // console.log(`   Health: http://localhost:${PORT}/api/health\n`);
 
   // Self-ping every 14 minutes to prevent Render free tier sleeping
   if (process.env.NODE_ENV === "production") {
     const selfUrl =
       process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+
     setInterval(
-      async () => {
+      () => {
         try {
           const https = require("https");
           const http = require("http");
-          const cleanUrl = selfUrl.endsWith("/") ? selfUrl.slice(0, -1) : selfUrl;
-lib.get(`${cleanUrl}/api/health`, (res) => {
+          const cleanUrl = selfUrl.endsWith("/")
+            ? selfUrl.slice(0, -1)
+            : selfUrl;
+
+          // Dynamically select http or https client based on your URL schema
+          const client = cleanUrl.startsWith("https") ? https : http;
+
+          client
+            .get(`${cleanUrl}/api/health`, (res) => {
               console.log(
                 `[Keep-alive] Self-ping: ${res.statusCode} at ${new Date().toISOString()}`,
               );
@@ -166,6 +162,7 @@ lib.get(`${cleanUrl}/api/health`, (res) => {
       },
       14 * 60 * 1000,
     ); // every 14 minutes
+
     console.log("✅ Keep-alive self-ping enabled");
   }
 });

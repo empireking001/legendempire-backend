@@ -28,13 +28,11 @@ async function getConfig() {
   return cfg;
 }
 
-// ── HELPER: CORE NODEMAILER TRANSMISSION FLOW ────────────────────────────────
+// ── HELPER: CORE NODEMAILER/HTTP TRANSMISSION FLOW ───────────────────────────
 async function sendEmail({ to, subject, html, cfg }) {
   try {
-    const nodemailer = require("nodemailer");
-
     if (!cfg.smtpHost || !cfg.smtpUser || !cfg.smtpPass) {
-      console.warn(`⚠️ SMTP not configured. Skipping email to [${to}].`, {
+      console.warn(`⚠️ SMTP/API not configured. Skipping email to [${to}].`, {
         host: cfg.smtpHost,
         user: cfg.smtpUser,
         hasPass: !!cfg.smtpPass,
@@ -42,15 +40,62 @@ async function sendEmail({ to, subject, html, cfg }) {
       return false;
     }
 
+    const port = Number(cfg.smtpPort);
+
+    // 💡 ULTRA-RELIABLE OPTION: Switch to Brevo HTTP REST API if host indicates Brevo
+    // This completely bypasses Render's firewall blocks on ports 587 & 25
+    if (cfg.smtpHost.includes("brevo") || process.env.BREVO_API_KEY) {
+      const apiKey = process.env.BREVO_API_KEY || cfg.smtpPass;
+
+      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "api-key": apiKey,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          sender: {
+            name: cfg.fromName || "LegendEmpire",
+            email: cfg.fromEmail,
+          },
+          to: [{ email: to }],
+          replyTo: { email: cfg.replyTo || cfg.fromEmail },
+          subject: subject,
+          htmlContent: html,
+        }),
+      });
+
+      if (response.ok) {
+        console.log(`✅ Email sent via Brevo HTTP API to [${to}]`);
+        return true;
+      }
+
+      const errData = await response.json().catch(() => ({}));
+      console.warn(
+        `⚠️ Brevo HTTP API failed, trying SMTP fallback. Reason:`,
+        errData.message || response.statusText,
+      );
+    }
+
+    // ── STANDARD SMTP PIPELINE ───────────────────────────────────────────────
+    const nodemailer = require("nodemailer");
+
+    // Fixes the database payload bug: Force secure connection if port is 465
+    const isSecure =
+      port === 465
+        ? true
+        : cfg.smtpSecure === true || cfg.smtpSecure === "true";
+
     const transporter = nodemailer.createTransport({
       host: cfg.smtpHost,
-      port: Number(cfg.smtpPort) || 587,
-      secure: cfg.smtpSecure === true || cfg.smtpSecure === "true",
+      port: port || 587,
+      secure: isSecure,
       auth: {
         user: cfg.smtpUser,
-        pass: cfg.smtpPass,
+        pass: cfg.smtpPass, // Remember: Must be a 16-character App Password for Gmail
       },
-      timeout: 10000,
+      connectionTimeout: 10000, // Fail fast (10s) instead of hanging the worker loop
     });
 
     await transporter.sendMail({
@@ -61,7 +106,7 @@ async function sendEmail({ to, subject, html, cfg }) {
       html,
     });
 
-    console.log(`✅ Email sent to [${to}]`);
+    console.log(`✅ Email sent via SMTP to [${to}]`);
     return true;
   } catch (err) {
     console.error(`❌ Mail delivery pipeline failed for [${to}]:`, err.message);
@@ -346,7 +391,6 @@ exports.testEmail = async (req, res) => {
   try {
     const cfg = await getConfig();
 
-    // ✅ Cleaned payload safety parsing. Will no longer crash if req.body is completely empty
     const targetEmail =
       (req.body && req.body.targetEmail) || cfg.fromEmail || cfg.smtpUser;
 
@@ -371,11 +415,11 @@ exports.testEmail = async (req, res) => {
       <div style="font-family: sans-serif; padding: 24px; border: 2px dashed #0d9488; border-radius: 12px; max-width: 500px; margin: 20px auto;">
         <h3 style="color: #0d9488; margin-top: 0;">🛠️ LegendEmpire SMTP Test</h3>
         <p style="color: #374151; font-size: 14px; line-height: 1.5;">
-          Your SMTP configuration is working correctly! ✅
+          Your SMTP/API configuration layout is working correctly! ✅
         </p>
         <div style="background-color: #f3f4f6; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; color: #4b5563; margin-top: 16px;">
           Time     : ${new Date().toISOString()}<br/>
-          SSL/TLS  : ${cfg.smtpSecure ? "Enabled (port 465)" : "STARTTLS (port 587)"}<br/>
+          Port     : ${cfg.smtpPort}<br/>
           Host     : ${cfg.smtpHost}
         </div>
       </div>
@@ -397,7 +441,7 @@ exports.testEmail = async (req, res) => {
       res.status(500).json({
         success: false,
         message:
-          "SMTP connection failed. Check your Host, Port, Username and Password in settings.",
+          "Email transmission failed. If using port 465, double check credentials. If on Render, switch to Brevo HTTP configuration.",
       });
     }
   } catch (err) {
@@ -411,7 +455,6 @@ exports.sendDigest = async (req, res) => {
   try {
     const { subject, customHtml, targetTags } = req.body;
 
-    // ✅ Cleaned: Set default subject fallback if empty text string is passed from input state
     const finalSubject =
       subject && subject.trim()
         ? subject.trim()
@@ -432,7 +475,6 @@ exports.sendDigest = async (req, res) => {
       });
     }
 
-    // ✅ Cleaned: Auto-generate HTML content layouts dynamically from recent database documents if empty payload state object returns true
     let finalHtml = customHtml && customHtml.trim() ? customHtml : null;
 
     if (!finalHtml) {
@@ -541,7 +583,8 @@ exports.sendDigest = async (req, res) => {
             failureCount++;
           }
 
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          // Small delay to prevent hitting API rate limits or spam block filters
+          await new Promise((resolve) => setTimeout(resolve, 150));
         } catch (innerErr) {
           console.error(
             `[Digest Worker] Error for [${sub.email}]:`,
