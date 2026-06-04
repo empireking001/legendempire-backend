@@ -76,11 +76,15 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(async () => {
     console.log("✅ MongoDB connected");
-    await require("./utils/seed")();
+    // Wrap your seed in a try/catch so a seed error doesn't crash the server connection
+    try {
+      await require("./utils/seed")();
+    } catch (seedErr) {
+      console.error("❌ Seeding failed:", seedErr.message);
+    }
   })
   .catch((err) => {
-    console.error("❌ MongoDB connection failed:", err.message);
-    process.exit(1);
+    console.error("❌ Initial MongoDB connection failed:", err.message);
   });
 
 // ── Routes ────────────────────────────────────────
@@ -147,9 +151,8 @@ app.listen(PORT, () => {
         try {
           const https = require("https");
           const http = require("http");
-          const lib = selfUrl.startsWith("https") ? https : http;
-          lib
-            .get(`${selfUrl}/api/health`, (res) => {
+          const cleanUrl = selfUrl.endsWith("/") ? selfUrl.slice(0, -1) : selfUrl;
+lib.get(`${cleanUrl}/api/health`, (res) => {
               console.log(
                 `[Keep-alive] Self-ping: ${res.statusCode} at ${new Date().toISOString()}`,
               );
