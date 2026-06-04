@@ -365,16 +365,19 @@ exports.saveEmailConfig = async (req, res) => {
 // ── ADMIN: ISOLATED CONFIG TESTING ENDPOINT ──────────────────────────────────
 exports.testEmail = async (req, res) => {
   try {
-    const { targetEmail } = req.body;
+    const cfg = await getConfig();
+
+    // ← Fall back to fromEmail if targetEmail not provided
+    const targetEmail = req.body.targetEmail || cfg.fromEmail || cfg.smtpUser;
+
     if (!targetEmail) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            "Target parameter payload requires 'targetEmail' variable key.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "No target email found. Please set a From Email in settings.",
+      });
     }
+
+    // ... rest of your existing code unchanged
 
     const cfg = await getConfig();
 
@@ -407,13 +410,11 @@ exports.testEmail = async (req, res) => {
         message: `Validation confirmation block routed out securely via port ${cfg.smtpPort} to [${targetEmail}].`,
       });
     } else {
-      res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            "Handshake operation rejected by mail server node. Review access logs.",
-        });
+      res.status(500).json({
+        success: false,
+        message:
+          "Handshake operation rejected by mail server node. Review access logs.",
+      });
     }
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
