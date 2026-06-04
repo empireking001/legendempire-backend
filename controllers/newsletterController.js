@@ -377,10 +377,6 @@ exports.testEmail = async (req, res) => {
       });
     }
 
-    // ... rest of your existing code unchanged
-
-    const cfg = await getConfig();
-
     const verificationHtml = `
       <div style="font-family: sans-serif; padding: 24px; border: 2px dashed #0d9488; border-radius: 12px; max-width: 500px; margin: 20px auto;">
         <h3 style="color: #0d9488; margin-top: 0; display: flex; align-items: center; gap: 8px;">
