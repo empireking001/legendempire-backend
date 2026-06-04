@@ -33,8 +33,6 @@ async function sendEmail({ to, subject, html, cfg }) {
   try {
     const nodemailer = require("nodemailer");
 
-    // 🔧 FIX: Return false (not true) when SMTP is not configured
-    // Returning true was silently faking success and hiding config issues
     if (!cfg.smtpHost || !cfg.smtpUser || !cfg.smtpPass) {
       console.warn(`⚠️ SMTP not configured. Skipping email to [${to}].`, {
         host: cfg.smtpHost,
@@ -115,14 +113,12 @@ exports.subscribe = async (req, res) => {
       });
     }
 
-    // Respond immediately — don't wait for welcome email
     res.status(201).json({
       success: true,
       message: "Successfully subscribed! Welcome aboard.",
       data: sub,
     });
 
-    // Fire welcome email in background so it never blocks the response
     process.nextTick(async () => {
       try {
         const cfg = await getConfig();
@@ -350,11 +346,15 @@ exports.testEmail = async (req, res) => {
   try {
     const cfg = await getConfig();
 
-    const targetEmail = req.body.targetEmail || cfg.fromEmail || cfg.smtpUser;
+    // ✅ Cleaned payload safety parsing. Will no longer crash if req.body is completely empty
+    const targetEmail =
+      (req.body && req.body.targetEmail) || cfg.fromEmail || cfg.smtpUser;
+
     if (!targetEmail) {
       return res.status(400).json({
         success: false,
-        message: "No target email found. Please set a From Email in settings.",
+        message:
+          "No target email parameter specified, and no default configurations exist in Settings.",
       });
     }
 
@@ -411,13 +411,11 @@ exports.sendDigest = async (req, res) => {
   try {
     const { subject, customHtml, targetTags } = req.body;
 
-    // 🔧 FIX: Only subject is required — customHtml auto-generates if blank
-    if (!subject || !subject.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Subject line is required.",
-      });
-    }
+    // ✅ Cleaned: Set default subject fallback if empty text string is passed from input state
+    const finalSubject =
+      subject && subject.trim()
+        ? subject.trim()
+        : "LegendEmpire Weekly Digest — Top Opportunities This Week";
 
     const cfg = await getConfig();
 
@@ -434,7 +432,7 @@ exports.sendDigest = async (req, res) => {
       });
     }
 
-    // 🔧 FIX: Auto-generate HTML from latest posts if customHtml is empty
+    // ✅ Cleaned: Auto-generate HTML content layouts dynamically from recent database documents if empty payload state object returns true
     let finalHtml = customHtml && customHtml.trim() ? customHtml : null;
 
     if (!finalHtml) {
@@ -495,7 +493,7 @@ exports.sendDigest = async (req, res) => {
       process.env.API_BASE_URL || "https://legendempire.vercel.app";
 
     const emailLog = await EmailLog.create({
-      subject,
+      subject: finalSubject,
       sentTo: subscribers.length,
       strategy: cfg.strategy || "manual",
       trackingId,
@@ -505,7 +503,6 @@ exports.sendDigest = async (req, res) => {
       sentAt: new Date(),
     });
 
-    // 🔧 Respond immediately — background worker handles actual sending
     res.json({
       success: true,
       message: `Digest queued for ${subscribers.length} subscribers! Sending in background.`,
@@ -531,7 +528,7 @@ exports.sendDigest = async (req, res) => {
 
           const deliveryOk = await sendEmail({
             to: sub.email,
-            subject,
+            subject: finalSubject,
             html: trackedTemplate,
             cfg,
           });
@@ -544,7 +541,6 @@ exports.sendDigest = async (req, res) => {
             failureCount++;
           }
 
-          // 100ms throttle to protect SMTP reputation
           await new Promise((resolve) => setTimeout(resolve, 100));
         } catch (innerErr) {
           console.error(
