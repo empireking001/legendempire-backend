@@ -530,9 +530,16 @@ exports.sendDigest = async (req, res) => {
       `;
     }
 
+    // Find this section inside exports.sendDigest:
     const trackingId = generateTrackingId();
+
+    // 🛠️ FIX: Ensure baseUrl points to your RENDER BACKEND url, NOT your vercel frontend url
     const baseUrl =
-      process.env.API_BASE_URL || "https://legendempire.vercel.app";
+      process.env.API_BASE_URL || "https://backend-blog-1b98.onrender.com";
+
+    // Keep your frontend siteUrl pointing to Vercel so the end destination is correct
+    const siteUrl =
+      process.env.FRONTEND_URL || "https://legendempire.vercel.app";
 
     const emailLog = await EmailLog.create({
       subject: finalSubject,
