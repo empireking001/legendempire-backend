@@ -1,5 +1,6 @@
 const School = require("../models/School");
-const Post = require("../models/");
+// ── FIXED IMPORT: Target the specific Post model file reference directly
+const Post = require("../models/Post");
 
 // ── Helpers ────────────────────────────────────────
 const TYPE_LABELS = {
@@ -54,13 +55,14 @@ exports.getSchools = async (req, res) => {
         "name slug acronym shortName type ownership state city logo coverImage isFeatured views established isAccredited",
       );
 
-    // Get post counts for each school
+    // Get post counts for each school safely using explicit references
     const schoolIds = schools.map((s) => s._id);
     const postCounts = await Post.aggregate([
       { $match: { schools: { $in: schoolIds }, status: "published" } },
       { $unwind: "$schools" },
       { $group: { _id: "$schools", count: { $sum: 1 } } },
     ]);
+
     const countMap = {};
     postCounts.forEach((p) => {
       countMap[p._id.toString()] = p.count;
@@ -125,11 +127,11 @@ exports.getSchool = async (req, res) => {
         .status(404)
         .json({ success: false, message: "School not found." });
 
-    // Increment views
+    // Increment views safely without breaking validation constraints
     school.views = (school.views || 0) + 1;
     await school.save({ validateBeforeSave: false });
 
-    // Get post count
+    // Get true post count
     const postCount = await Post.countDocuments({
       schools: school._id,
       status: "published",
@@ -251,12 +253,10 @@ exports.createSchool = async (req, res) => {
       .json({ success: true, data: school, message: `${school.name} added!` });
   } catch (err) {
     if (err.code === 11000)
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "A school with this name/slug already exists.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "A school with this name/slug already exists.",
+      });
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -284,7 +284,8 @@ exports.deleteSchool = async (req, res) => {
     const school = await School.findByIdAndDelete(req.params.id);
     if (!school)
       return res.status(404).json({ success: false, message: "Not found." });
-    // Remove school reference from all posts
+
+    // Clean up post collection references accurately
     await Post.updateMany(
       { schools: school._id },
       { $pull: { schools: school._id } },
@@ -315,15 +316,18 @@ exports.adminStats = async (req, res) => {
     const total = await School.countDocuments();
     const active = await School.countDocuments({ isActive: true });
     const featured = await School.countDocuments({ isFeatured: true });
+
     const byType = await School.aggregate([
       { $group: { _id: "$type", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
+
     const byState = await School.aggregate([
       { $group: { _id: "$state", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 10 },
     ]);
+
     res.json({
       success: true,
       data: { total, active, featured, byType, byState },

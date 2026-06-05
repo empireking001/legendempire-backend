@@ -93,6 +93,7 @@ const PostSchema = new mongoose.Schema(
     isFeatured: { type: Boolean, default: false },
     // Add this line to PostSchema:
     schools: [{ type: mongoose.Schema.Types.ObjectId, ref: "School" }],
+    status: { type: String, enum: ["draft", "published"], default: "draft" },
     // Scheduler
     scheduledAt: { type: Date, default: null },
     // Sponsored
