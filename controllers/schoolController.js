@@ -1,6 +1,6 @@
 const School = require("../models/School");
 // ── FIXED IMPORT: Target the specific Post model file reference directly
-const Post = require("../models/Post");
+const Post = require("../models/index").Post;
 
 // ── Helpers ────────────────────────────────────────
 const TYPE_LABELS = {
