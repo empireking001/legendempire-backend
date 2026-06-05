@@ -452,6 +452,22 @@ exports.createPost = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+// ── ADD THIS CONTROLLER METHOD FOR GETTING A SINGLE POST FOR ADMINS ──
+exports.adminGetPostById = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id)
+      .populate("category", "name slug color icon")
+      .populate("schools", "name logo"); // Populates your school links cleanly
+
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
+    res.json({ success: true, data: post }); // Includes 'content' naturally!
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
 
 // ── ADMIN: Publish Draft Post Handler ────────────────
 exports.publishPost = async (req, res) => {

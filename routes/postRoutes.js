@@ -7,6 +7,7 @@ const cache = require("../middleware/cache");
 // Admin routes FIRST
 r.get('/admin/all',          protect, adminOnly, ctrl.adminGetPosts);
 r.get('/admin/stats',        protect, adminOnly, ctrl.adminGetStats);
+r.get("/admin/:id", protect, adminOnly, ctrl.adminGetPostById);
 r.post('/admin/create',      protect, adminOnly, ctrl.createPost);
 r.put('/admin/:id',          protect, adminOnly, ctrl.updatePost);
 r.delete('/admin/:id',       protect, adminOnly, ctrl.deletePost);
