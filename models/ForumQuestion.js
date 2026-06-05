@@ -37,6 +37,14 @@ const ForumQuestionSchema = new mongoose.Schema(
     upvotes: { type: Number, default: 0 },
     upvotedBy: [{ type: String }],
     answers: [AnswerSchema],
+
+    // ── LINK TO THE SCHOOL MODEL ──
+    school: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "School",
+      required: false, // Keeps it optional for general platform-wide questions
+    },
+
     status: {
       type: String,
       enum: ["open", "answered", "closed"],
@@ -49,7 +57,7 @@ const ForumQuestionSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// Auto-generate slug
+// Auto-generate slug before saving document
 ForumQuestionSchema.pre("save", function (next) {
   if (!this.slug) {
     this.slug =

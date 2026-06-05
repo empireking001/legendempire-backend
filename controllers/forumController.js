@@ -54,7 +54,9 @@ exports.getSchoolForum = async (req, res) => {
     const { slug } = req.params;
     const school = await School.findOne({ slug, isActive: true });
     if (!school) {
-      return res.status(404).json({ success: false, message: "School not found." });
+      return res
+        .status(404)
+        .json({ success: false, message: "School not found." });
     }
 
     const page = +req.query.page || 1;
@@ -86,13 +88,15 @@ exports.getQuestion = async (req, res) => {
     const q = await ForumQuestion.findOne({
       slug: req.params.slug,
       isApproved: true,
-    }).populate("school", "name acronym slug logo").select("-email");
+    })
+      .populate("school", "name acronym slug logo")
+      .select("-email");
 
     if (!q)
       return res
         .status(404)
         .json({ success: false, message: "Question not found." });
-        
+
     q.views += 1;
     await q.save();
     res.json({ success: true, data: q });
@@ -104,7 +108,8 @@ exports.getQuestion = async (req, res) => {
 // ── PUBLIC: Ask a question (Can be bound to a school) ──
 exports.createQuestion = async (req, res) => {
   try {
-    const { title, content, author, email, category, tags, schoolId } = req.body;
+    const { title, content, author, email, category, tags, schoolId } =
+      req.body;
     if (!title?.trim() || !content?.trim())
       return res
         .status(400)
@@ -114,7 +119,9 @@ exports.createQuestion = async (req, res) => {
     if (schoolId) {
       const schoolExists = await School.findById(schoolId);
       if (!schoolExists) {
-        return res.status(404).json({ success: false, message: "Linked school not found." });
+        return res
+          .status(404)
+          .json({ success: false, message: "Linked school not found." });
       }
     }
 
@@ -135,7 +142,11 @@ exports.createQuestion = async (req, res) => {
 
     res
       .status(201)
-      .json({ success: true, data: q, message: "Question posted successfully!" });
+      .json({
+        success: true,
+        data: q,
+        message: "Question posted successfully!",
+      });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -250,3 +261,4 @@ exports.deleteQuestion = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+

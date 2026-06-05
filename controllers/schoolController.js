@@ -336,3 +336,22 @@ exports.adminStats = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// controllers/schoolController.js or forumController.js
+exports.getSchoolThreads = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    // 1. Find school ID by slug
+    const school = await School.findOne({ slug });
+    if (!school) return res.status(404).json({ message: "School not found" });
+
+    // 2. Fetch associated threads
+    const threads = await Thread.find({ school: school._id })
+      .populate('author', 'firstName lastName avatar')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, data: threads });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
