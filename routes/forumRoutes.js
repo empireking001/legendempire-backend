@@ -3,19 +3,29 @@ const r = express.Router();
 const ctrl = require("../controllers/forumController");
 const { protect, adminOnly } = require("../middleware/auth");
 
-// Public
-r.get("/", ctrl.getQuestions);
-r.get("/:slug", ctrl.getQuestion);
-r.post("/", ctrl.createQuestion);
-r.post("/:id/answers", ctrl.addAnswer);
-r.post("/:id/upvote", ctrl.upvoteQuestion);
+// ==========================================
+// ── PUBLIC ROUTES (NO AUTH REQUIRED) ──────
+// ==========================================
 
-// Admin
-r.get("/admin/all", protect, adminOnly, ctrl.adminGetQuestions);
-r.post("/admin/:id/answer", protect, adminOnly, ctrl.adminAnswer);
-r.put("/admin/:id/pin", protect, adminOnly, ctrl.togglePin);
-r.delete("/admin/:id", protect, adminOnly, ctrl.deleteQuestion);
-// New public route (Anyone can hit this endpoint without a token)
-r.post('/admin/campus/add', createCampusQuestion);
+r.get("/", ctrl.getQuestions); // Get approved general questions
+r.get("/school/:slug", ctrl.getSchoolForum); // Get approved campus questions by school slug
+r.get("/q/:slug", ctrl.getQuestion); // Get single question view by slug
+r.post("/", ctrl.createQuestion); // Submit a question (General or Campus)
+r.post("/:id/answers", ctrl.addAnswer); // Submit an answer
+r.post("/:id/upvote", ctrl.upvoteQuestion); // Toggle an IP-bound upvote
+
+// ==========================================
+// ── ADMIN ROUTES (AUTH + ADMIN REQUIRED) ──
+// ==========================================
+
+// Dashboards
+r.get("/admin/general", protect, adminOnly, ctrl.adminGetGeneralQuestions); // Tab A: General questions
+r.get("/admin/campus", protect, adminOnly, ctrl.adminGetCampusQuestions); // Tab B: School campus questions
+
+// Actions
+r.put("/admin/:id/approve", protect, adminOnly, ctrl.adminApproveQuestion); // Direct approval toggle
+r.post("/admin/:id/answer", protect, adminOnly, ctrl.adminAnswer); // Admin response (auto-approves)
+r.put("/admin/:id/pin", protect, adminOnly, ctrl.togglePin); // Pin/unpin a question
+r.delete("/admin/:id", protect, adminOnly, ctrl.deleteQuestion); // Delete question entry
 
 module.exports = r;
