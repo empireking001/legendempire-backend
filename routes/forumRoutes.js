@@ -15,5 +15,7 @@ r.get("/admin/all", protect, adminOnly, ctrl.adminGetQuestions);
 r.post("/admin/:id/answer", protect, adminOnly, ctrl.adminAnswer);
 r.put("/admin/:id/pin", protect, adminOnly, ctrl.togglePin);
 r.delete("/admin/:id", protect, adminOnly, ctrl.deleteQuestion);
+// New public route (Anyone can hit this endpoint without a token)
+r.post('/admin/campus/add', createCampusQuestion);
 
 module.exports = r;

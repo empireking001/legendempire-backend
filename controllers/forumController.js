@@ -1,7 +1,63 @@
 const ForumQuestion = require("../models/ForumQuestion");
 const School = require("../models/School");
 
-// ── PUBLIC: Get all questions (Optionally filtered by School ID or general Category) ──
+// =========================================================================
+// ── PUBLIC ENDPOINTS (NO AUTH REQUIRED) ──────────────────────────────────
+// =========================================================================
+
+// ── PUBLIC: Ask a question (General or bound to a school) ──
+exports.createQuestion = async (req, res) => {
+  try {
+    const { title, content, author, email, category, tags, schoolId } =
+      req.body;
+
+    // Fallback title handling for campus questions that only submit direct text
+    const cleanTitle =
+      title?.trim() || content?.trim().substring(0, 60) + "...";
+
+    if (!content?.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Content required." });
+    }
+
+    // Validate school link if provided
+    if (schoolId) {
+      const schoolExists = await School.findById(schoolId);
+      if (!schoolExists) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Linked school not found." });
+      }
+    }
+
+    const q = await ForumQuestion.create({
+      title: cleanTitle,
+      content: content.trim(),
+      author: author?.trim() || "Anonymous Student", // Default to Anonymous Student
+      email: email?.trim() || "",
+      category: category || (schoolId ? "education" : "general"),
+      school: schoolId || null,
+      isApproved: false, // Explicitly false! Requires admin panel approval to show on timeline
+      tags: tags
+        ? tags
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : [],
+    });
+
+    res.status(201).json({
+      success: true,
+      data: q,
+      message: "Question submitted for approval successfully! 🚀",
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── PUBLIC: Get all approved general forum questions ──
 exports.getQuestions = async (req, res) => {
   try {
     const page = +req.query.page || 1;
@@ -9,17 +65,15 @@ exports.getQuestions = async (req, res) => {
     const category = req.query.category || "";
     const search = req.query.search || "";
     const sort = req.query.sort || "latest";
-    const schoolId = req.query.schoolId || ""; // 💡 Allows filtering by a specific school
 
-    const filter = { isApproved: true };
+    // Standard public query hides school-specific items and unapproved submissions
+    const filter = { isApproved: true, school: null };
     if (category) filter.category = category;
-    if (schoolId) filter.school = schoolId; // ── LINKED FILTER ──
 
     if (search) {
       filter.$or = [
         { title: { $regex: search, $options: "i" } },
         { content: { $regex: search, $options: "i" } },
-        { tags: { $in: [new RegExp(search, "i")] } },
       ];
     }
 
@@ -32,7 +86,6 @@ exports.getQuestions = async (req, res) => {
 
     const total = await ForumQuestion.countDocuments(filter);
     const questions = await ForumQuestion.find(filter)
-      .populate("school", "name acronym slug logo") // Populate bound school metadata
       .sort(sortObj)
       .skip((page - 1) * limit)
       .limit(limit)
@@ -40,7 +93,7 @@ exports.getQuestions = async (req, res) => {
 
     res.json({
       success: true,
-      data: questions,
+      data: q,
       pagination: { total, page, pages: Math.ceil(total / limit) },
     });
   } catch (err) {
@@ -48,7 +101,7 @@ exports.getQuestions = async (req, res) => {
   }
 };
 
-// ── PUBLIC: Get forum questions explicitly by School Slug ──
+// ── PUBLIC: Get approved forum questions explicitly by School Slug ──
 exports.getSchoolForum = async (req, res) => {
   try {
     const { slug } = req.params;
@@ -62,6 +115,7 @@ exports.getSchoolForum = async (req, res) => {
     const page = +req.query.page || 1;
     const limit = +req.query.limit || 20;
 
+    // Filters for approved questions matching this specific school instance
     const filter = { school: school._id, isApproved: true };
 
     const total = await ForumQuestion.countDocuments(filter);
@@ -82,7 +136,7 @@ exports.getSchoolForum = async (req, res) => {
   }
 };
 
-// ── PUBLIC: Get single question ────────────────────
+// ── PUBLIC: Get single question by slug ──
 exports.getQuestion = async (req, res) => {
   try {
     const q = await ForumQuestion.findOne({
@@ -105,54 +159,7 @@ exports.getQuestion = async (req, res) => {
   }
 };
 
-// ── PUBLIC: Ask a question (Can be bound to a school) ──
-exports.createQuestion = async (req, res) => {
-  try {
-    const { title, content, author, email, category, tags, schoolId } =
-      req.body;
-    if (!title?.trim() || !content?.trim())
-      return res
-        .status(400)
-        .json({ success: false, message: "Title and content required." });
-
-    // Validate school link if provided
-    if (schoolId) {
-      const schoolExists = await School.findById(schoolId);
-      if (!schoolExists) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Linked school not found." });
-      }
-    }
-
-    const q = await ForumQuestion.create({
-      title: title.trim(),
-      content: content.trim(),
-      author: author?.trim() || "Anonymous",
-      email: email?.trim() || "",
-      category: category || "general",
-      school: schoolId || null, // ── BINDING INSTANCE ──
-      tags: tags
-        ? tags
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean)
-        : [],
-    });
-
-    res
-      .status(201)
-      .json({
-        success: true,
-        data: q,
-        message: "Question posted successfully!",
-      });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-// ── PUBLIC: Answer a question ──────────────────────
+// ── PUBLIC: Answer a question ──
 exports.addAnswer = async (req, res) => {
   try {
     const { content, author, email } = req.body;
@@ -169,20 +176,24 @@ exports.addAnswer = async (req, res) => {
 
     q.answers.push({
       content: content.trim(),
-      author: author?.trim() || "Anonymous",
+      author: author?.trim() || "Anonymous Student",
       email: email?.trim() || "",
       isAdmin: false,
     });
 
     if (q.status === "open") q.status = "answered";
     await q.save();
-    res.json({ success: true, message: "Answer posted!", data: q });
+    res.json({
+      success: true,
+      message: "Answer posted successfully!",
+      data: q,
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ── PUBLIC: Upvote question ────────────────────────
+// ── PUBLIC: Upvote question ──
 exports.upvoteQuestion = async (req, res) => {
   try {
     const ip = req.ip || "unknown";
@@ -204,20 +215,63 @@ exports.upvoteQuestion = async (req, res) => {
   }
 };
 
-// ── ADMIN: Get all questions ───────────────────────
-exports.adminGetQuestions = async (req, res) => {
+// =========================================================================
+// ── ADMIN ENDPOINTS (REQUIRES ADMIN AUTHENTICATION MIDDLEWARE) ───────────
+// =========================================================================
+
+// ── ADMIN Tab A: Get all questions belonging to the General Forum (school is null) ──
+exports.adminGetGeneralQuestions = async (req, res) => {
   try {
-    const qs = await ForumQuestion.find()
-      .populate("school", "name acronym")
+    const qs = await ForumQuestion.find({ school: null })
       .sort({ createdAt: -1 })
-      .limit(100);
+      .limit(150);
     res.json({ success: true, data: qs });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ── ADMIN: Answer as admin ────────────────────────
+// ── ADMIN Tab B: Get all questions belonging specifically to School Campuses ──
+exports.adminGetCampusQuestions = async (req, res) => {
+  try {
+    const qs = await ForumQuestion.find({ school: { $ne: null } })
+      .populate("school", "name acronym")
+      .sort({ createdAt: -1 })
+      .limit(150);
+
+    // Format properties dynamically so frontend handles q.title and q.schoolName uniformly
+    const formattedData = qs.map((q) => ({
+      ...q._doc,
+      schoolName: q.school?.acronym || q.school?.name || "Campus",
+    }));
+
+    res.json({ success: true, data: formattedData });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── ADMIN: Approve a pending student submission ──
+exports.adminApproveQuestion = async (req, res) => {
+  try {
+    const q = await ForumQuestion.findById(req.params.id);
+    if (!q)
+      return res
+        .status(404)
+        .json({ success: false, message: "Question target not found." });
+
+    q.isApproved = true;
+    await q.save();
+    res.json({
+      success: true,
+      message: "Question approved for public view! ✅",
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── ADMIN: Answer and automatically approve question entry ──
 exports.adminAnswer = async (req, res) => {
   try {
     const { content } = req.body;
@@ -227,18 +281,21 @@ exports.adminAnswer = async (req, res) => {
 
     q.answers.unshift({
       content: content.trim(),
-      author: req.user.name || "LegendEmpire Team",
+      author: req.user?.name || "LegendEmpire Team",
       isAdmin: true,
     });
+
     q.status = "answered";
+    q.isApproved = true; // Auto-approve if the admin provides an answer directly!
     await q.save();
-    res.json({ success: true, message: "Admin answer posted!", data: q });
+
+    res.json({ success: true, message: "Admin response posted!", data: q });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ── ADMIN: Toggle pin ──────────────────────────────
+// ── ADMIN: Toggle pin ──
 exports.togglePin = async (req, res) => {
   try {
     const q = await ForumQuestion.findById(req.params.id);
@@ -252,13 +309,12 @@ exports.togglePin = async (req, res) => {
   }
 };
 
-// ── ADMIN: Delete question ─────────────────────────
+// ── ADMIN: Delete question ──
 exports.deleteQuestion = async (req, res) => {
   try {
     await ForumQuestion.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: "Question deleted." });
+    res.json({ success: true, message: "Question deleted successfully." });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
