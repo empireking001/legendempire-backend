@@ -8,9 +8,15 @@ const { protect, adminOnly } = require("../middleware/auth");
 // ==========================================
 
 r.get("/", ctrl.getQuestions); // Get approved general questions
-r.get("/school/:slug", ctrl.getSchoolForum); // Get approved campus questions by school slug
+
+// ── FIX 1: Changed "/school/:slug" to "/campus/:slug" to match frontend GET requests
+r.get("/campus/:slug", ctrl.getSchoolForum);
+
 r.get("/q/:slug", ctrl.getQuestion); // Get single question view by slug
-r.post("/", ctrl.createQuestion); // Submit a question (General or Campus)
+
+// ── FIX 2: Changed "/" to "/campus" to match frontend POST requests when submitting questions
+r.post("/campus", ctrl.createQuestion);
+
 r.post("/:id/answers", ctrl.addAnswer); // Submit an answer
 r.post("/:id/upvote", ctrl.upvoteQuestion); // Toggle an IP-bound upvote
 
