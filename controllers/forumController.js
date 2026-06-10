@@ -66,7 +66,6 @@ exports.getQuestions = async (req, res) => {
     const search = req.query.search || "";
     const sort = req.query.sort || "latest";
 
-    // Standard public query hides school-specific items and unapproved submissions
     const filter = { isApproved: true, school: null };
     if (category) filter.category = category;
 
@@ -93,7 +92,7 @@ exports.getQuestions = async (req, res) => {
 
     res.json({
       success: true,
-      data: q,
+      data: questions, // ✅ FIXED: Changed from 'q' to 'questions'
       pagination: { total, page, pages: Math.ceil(total / limit) },
     });
   } catch (err) {
