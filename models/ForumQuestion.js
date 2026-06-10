@@ -15,7 +15,7 @@ const AnswerSchema = new mongoose.Schema(
 
 const ForumQuestionSchema = new mongoose.Schema(
   {
-    title: { type: String, required: true, trim: true },
+    title: { type: String, required: false, trim: true },
     content: { type: String, required: true, trim: true },
     author: { type: String, default: "Anonymous" },
     email: { type: String, default: "" },
