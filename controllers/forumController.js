@@ -218,11 +218,16 @@ exports.upvoteQuestion = async (req, res) => {
 // ── ADMIN ENDPOINTS (REQUIRES ADMIN AUTHENTICATION MIDDLEWARE) ───────────
 // =========================================================================
 
+// =========================================================================
+// ── ADMIN ENDPOINTS (REQUIRES ADMIN AUTHENTICATION MIDDLEWARE) ───────────
+// =========================================================================
+
 // ── ADMIN Tab A: Get all questions belonging to the General Forum (school is null) ──
 exports.adminGetGeneralQuestions = async (req, res) => {
   try {
+    // Fetches all general questions (both pending approval and already approved)
     const qs = await ForumQuestion.find({ school: null })
-      .sort({ createdAt: -1 })
+      .sort({ isApproved: 1, createdAt: -1 }) // ✨ Shows unapproved pending ones at the very top!
       .limit(150);
     res.json({ success: true, data: qs });
   } catch (err) {
@@ -233,9 +238,10 @@ exports.adminGetGeneralQuestions = async (req, res) => {
 // ── ADMIN Tab B: Get all questions belonging specifically to School Campuses ──
 exports.adminGetCampusQuestions = async (req, res) => {
   try {
+    // Fetches all campus questions (both pending approval and already approved)
     const qs = await ForumQuestion.find({ school: { $ne: null } })
       .populate("school", "name acronym")
-      .sort({ createdAt: -1 })
+      .sort({ isApproved: 1, createdAt: -1 }) // ✨ Shows unapproved pending ones at the very top!
       .limit(150);
 
     // Format properties dynamically so frontend handles q.title and q.schoolName uniformly
